@@ -290,7 +290,7 @@ void WebManager::handleSettingsPage() {
     html += "<label>Kalibrasyon (&deg;C)<input name='offset' type='number' min='-10' max='10' step='0.1' value='"
             + String(thermostat->getTemperatureOffset(), 1) + "'></label>";
     html += "<button type='submit'>Kaydet</button></form>";
-    html += "<p class='muted'><a href='/wifi'>Wi-Fi ayarlar&#305;</a></p>";
+    html += "<p class='muted'><a href='/wifi'>Wi-Fi ayarlar&#305;</a> &middot; <a href='/guncelle'>Yaz&#305;l&#305;m g&uuml;ncelle</a></p>";
 
     html += R"rawliteral(
 <div class="muted" id="upd" style="text-align:center;font-size:.85rem">Ba&#287;lan&#305;yor&hellip;</div>

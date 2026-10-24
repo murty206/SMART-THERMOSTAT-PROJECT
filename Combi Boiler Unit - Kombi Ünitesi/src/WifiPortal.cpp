@@ -1,6 +1,7 @@
 #include "WifiPortal.h"
 #include "mbedtls/md.h"
 #include "mbedtls/base64.h"
+#include <Update.h>
 
 // Kurulum hotspot'unun şifresi GitHub'a gitmeyen secrets.h dosyasındadır.
 #if __has_include("secrets.h")
@@ -22,6 +23,8 @@ WifiPortal::WifiPortal(WebServer* server, const char* hostname, const char* apNa
     this->hostname = hostname;
     this->apName = apName;
     this->lastChannel = 0;
+    this->updateAuthorized = false;
+    this->updateFailed = false;
     this->apActive = false;
     this->mdnsStarted = false;
     this->lastRetryTime = 0;
@@ -66,6 +69,9 @@ void WifiPortal::begin() {
 
     server->on("/wifi", HTTP_GET, [this]() { handleWifiPage(); });
     server->on("/wifi", HTTP_POST, [this]() { handleWifiSave(); });
+    server->on("/guncelle", HTTP_GET, [this]() { handleUpdatePage(); });
+    server->on("/guncelle", HTTP_POST, [this]() { handleUpdateDone(); },
+               [this]() { handleUpdateUpload(); });
     server->onNotFound([this]() { handleNotFound(); });
     server->begin();
 }
@@ -268,6 +274,90 @@ void WifiPortal::handleWifiSave() {
     html += pageFooter();
     server->send(200, "text/html; charset=utf-8", html);
 
+    delay(1000); // Cevabın tarayıcıya ulaşması için
+    ESP.restart();
+}
+
+// ==========================================
+// KABLOSUZ GÜNCELLEME (OTA)
+// ==========================================
+void WifiPortal::handleUpdatePage() {
+    // Şifre henüz belirlenmemişse güncelleme açılmaz: ağdaki herkes yazılım yükleyemesin
+    if (adminHash.length() == 0) {
+        server->send(403, "text/plain; charset=utf-8",
+                     "Once /wifi sayfasindan yonetici sifresi belirleyin.");
+        return;
+    }
+    if (!requireAdmin()) return;
+
+    String html = pageHeader("Yaz&#305;l&#305;m g&uuml;ncelle");
+    html += "<div class='card'>";
+    html += "<div class='row'><span>&Ccedil;al&#305;&#351;an yaz&#305;l&#305;m (MD5)</span><span>" + ESP.getSketchMD5().substring(0, 12) + "&hellip;</span></div>";
+    html += "<div class='row'><span>Boyut</span><span>" + String(ESP.getSketchSize() / 1024) + " KB</span></div>";
+    html += "<div class='row'><span>Bo&#351; yer</span><span>" + String(ESP.getFreeSketchSpace() / 1024) + " KB</span></div>";
+    html += "</div>";
+    html += "<form class='card' method='POST' action='/guncelle' enctype='multipart/form-data'>";
+    html += "<label>Derlenmi&#351; yaz&#305;l&#305;m (.pio/build/esp32dev/firmware.bin)";
+    html += "<input type='file' name='firmware' accept='.bin' required></label>";
+    html += "<div class='muted' style='font-size:.9rem'>Y&uuml;kleme yar&#305;m dakika kadar s&uuml;rer; sayfay&#305; kapatmay&#305;n. ";
+    html += "Yar&#305;da kal&#305;rsa cihaz eski yaz&#305;l&#305;mla &ccedil;al&#305;&#351;maya devam eder.</div>";
+    html += "<button type='submit'>Y&uuml;kle ve yeniden ba&#351;lat</button></form>";
+    html += pageFooter();
+    server->send(200, "text/html; charset=utf-8", html);
+}
+
+// Dosya parça parça gelir; her parça boş uygulama bölümüne yazılır
+void WifiPortal::handleUpdateUpload() {
+    HTTPUpload& up = server->upload();
+    if (up.status == UPLOAD_FILE_START) {
+        updateFailed = false;
+        updateError = "";
+        // Başlık yükleme başlarken kontrol edilir: şifresiz istek tek bayt yazdıramaz
+        updateAuthorized = adminHash.length() > 0 && checkAdminHeader();
+        if (!updateAuthorized) return;
+        Serial.printf("OTA: '%s' yukleniyor...\n", up.filename.c_str());
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+            updateFailed = true;
+            updateError = Update.errorString();
+        }
+    } else if (up.status == UPLOAD_FILE_WRITE) {
+        if (!updateAuthorized || updateFailed) return;
+        if (Update.write(up.buf, up.currentSize) != up.currentSize) {
+            updateFailed = true;
+            updateError = Update.errorString();
+        }
+    } else if (up.status == UPLOAD_FILE_END) {
+        if (!updateAuthorized || updateFailed) return;
+        if (Update.end(true)) {  // Boyut ve görüntü doğrulaması burada
+            Serial.printf("OTA: %u bayt yazildi, dogrulandi.\n", (unsigned)up.totalSize);
+        } else {
+            updateFailed = true;
+            updateError = Update.errorString();
+        }
+    } else if (up.status == UPLOAD_FILE_ABORTED) {
+        if (updateAuthorized && !updateFailed) Update.abort();
+        updateFailed = true;
+        updateError = "Yukleme yarida kesildi";
+    }
+}
+
+void WifiPortal::handleUpdateDone() {
+    if (!updateAuthorized) {
+        server->requestAuthentication(BASIC_AUTH, "Termostat");
+        return;
+    }
+    if (updateFailed || !Update.isFinished()) {
+        updateAuthorized = false; // Sonraki istek yetkiyi yeniden kanıtlasın
+        Serial.printf("OTA: BASARISIZ: %s\n", updateError.c_str());
+        server->send(500, "text/plain; charset=utf-8",
+                     "Guncelleme basarisiz, cihaz eski yazilimla calismaya devam ediyor: " + updateError);
+        return;
+    }
+    String html = pageHeader("G&uuml;ncellendi");
+    html += "<p>Yeni yaz&#305;l&#305;m y&uuml;klendi ve do&#287;ruland&#305;. Cihaz yeniden ba&#351;l&#305;yor.</p>";
+    html += "<p>Birka&ccedil; saniye sonra <a href='/'>ana sayfaya</a> d&ouml;n&uuml;n.</p>";
+    html += pageFooter();
+    server->send(200, "text/html; charset=utf-8", html);
     delay(1000); // Cevabın tarayıcıya ulaşması için
     ESP.restart();
 }

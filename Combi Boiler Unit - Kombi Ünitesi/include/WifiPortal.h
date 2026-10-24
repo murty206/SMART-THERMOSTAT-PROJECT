@@ -43,6 +43,17 @@ private:
     void onConnected();
     void handleWifiPage();
     void handleWifiSave();
+
+    // Kablosuz güncelleme (OTA): /guncelle sayfasından derlenmiş .bin yüklenir.
+    // Yeni yazılım çalışanın yanındaki uygulama bölümüne yazılır; tamamı yazılıp
+    // doğrulanınca açılış oraya çevrilir ve kart yeniden başlar. Yarıda kalırsa
+    // çalışan yazılım olduğu gibi kalır. Yönetici şifresi şart.
+    bool updateAuthorized;
+    bool updateFailed;
+    String updateError;
+    void handleUpdatePage();
+    void handleUpdateUpload();
+    void handleUpdateDone();
     void handleNotFound();
     bool checkAdminHeader();
 
