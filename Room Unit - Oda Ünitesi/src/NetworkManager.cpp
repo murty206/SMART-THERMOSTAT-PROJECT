@@ -6,8 +6,13 @@ NetworkManager::NetworkManager(uint8_t* macAddress) {
 }
 
 bool NetworkManager::initESPNow() {
-    WiFi.mode(WIFI_STA); 
+    // Wi-Fi modunu WifiPortal ayarlar; burada sıfırlanırsa modem bağlantısı kopar
+    if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_STA);
     if (esp_now_init() != ESP_OK) return false;
+
+    // Kombi ünitesi yalnızca bu adresten gelen paketleri kabul eder
+    Serial.print("Oda Cihazi MAC Adresi: ");
+    Serial.println(WiFi.macAddress());
 
     // Gölgeleme (Shadowing) hatası çözüldü. Sadece yerel değişken kullanıyoruz.
     esp_now_peer_info_t peerInfo = {}; 

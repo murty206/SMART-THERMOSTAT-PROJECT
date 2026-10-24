@@ -3,3 +3,6 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# Şifreler (bkz. include/secrets.example.h)
+include/secrets.h

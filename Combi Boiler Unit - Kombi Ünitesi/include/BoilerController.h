@@ -10,7 +10,10 @@ private:
     
     // Watchdog (Güvenlik) Değişkenleri
     unsigned long lastHeartbeatTime; 
-    const unsigned long WATCHDOG_TIMEOUT = 15 * 60 * 1000; // 15 Dakika (milisaniye cinsinden)
+    // Oda ünitesi 60 sn'de bir paket yollar; 5 paket üst üste kaçarsa kombi kapanır
+    const unsigned long WATCHDOG_TIMEOUT = 5 * 60 * 1000; // 5 Dakika (milisaniye cinsinden)
+
+    void forcePinLow(); // Röle pinini LOW çıkış + dahili pull-down yapar
 
 public:
     BoilerController(uint8_t pin);
@@ -20,6 +23,11 @@ public:
     
     void feedWatchdog(); // Yeni paket geldiğinde köpeği beslemek (zamanı sıfırlamak) için
     void checkWatchdog(); // loop() içinde sürekli süreyi kontrol etmek için
+
+    // Web arayüzü için durum bilgisi (salt okunur)
+    bool getRelayState();
+    unsigned long getMillisSinceHeartbeat();
+    unsigned long getWatchdogTimeout();
 };
 
 #endif

@@ -5,7 +5,8 @@ NetworkManager::NetworkManager() {
 }
 
 bool NetworkManager::initESPNow() {
-    WiFi.mode(WIFI_STA); // Cihazı Wi-Fi istasyon moduna al
+    // Wi-Fi modunu WifiPortal ayarlar; burada sıfırlanırsa modem bağlantısı kopar
+    if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_STA);
     
     if (esp_now_init() != ESP_OK) {
         Serial.println("HATA: ESP-NOW baslatilamadi!");

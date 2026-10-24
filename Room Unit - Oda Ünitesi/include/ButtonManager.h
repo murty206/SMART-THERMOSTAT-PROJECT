@@ -1,15 +1,12 @@
+#pragma once
+#include <Arduino.h>
+
 // Butonun dış dünyaya verebileceği mutlak tepkiler
 enum ButtonEvent {
     BTN_NONE,           // Hiçbir şey olmadı / Bekliyor
     BTN_SHORT_PRESS,    // Menü seçimi / Onay
     BTN_LONG_PRESS      // Yaz moduna geçiş / Geri Dönüş
 };
-
-#pragma once
-#include <Arduino.h>
-
-// Eğer enum'u bu dosyanın içine koyacaksanız burada tanımlayın
-// enum ButtonEvent { BTN_NONE, BTN_SHORT_PRESS, BTN_LONG_PRESS };
 
 class ButtonManager {
 private:
